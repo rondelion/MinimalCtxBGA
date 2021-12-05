@@ -16,8 +16,18 @@ For details, please read [this article](https://rondelionai.blogspot.com/2021/12
     * [OpenAI Gym](https://gym.openai.com/)
     * [PyTorch](https://pytorch.org)
     * [TensorForce](https://github.com/tensorforce/tensorforce)
-
-
+* Register the environment to Gym
+    * Place `CBT1Env.py` file in `gym/gym/envs/myenv`  
+    (wherever Gym to be used is installed)
+    * Add to `__init__.py` (located in the same folder)  
+      `from gym.envs.myenv.CBT1Env import CBT1Env`
+    * Add to `gym/gym/envs/__init__.py`  
+```
+register(
+    id='CBT1Env-v0',
+    entry_point='gym.envs.myenv:CBT1Env'
+    )
+```
 
 ## Usage
 ### Command arguments
@@ -38,7 +48,6 @@ $ python CBT1cCA.py 3 --episode_count 4000 --dump "BG_dump.txt" --dump_flags "mb
 ## Other files
 
 * CBT1CA.json:	config. file
-* CBT1Env.py:	test environment
 * CBT1EnvRLTest.py:	an RL agent for the environment
 
 
