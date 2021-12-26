@@ -62,7 +62,7 @@ class Perceptron(torch.nn.Module):
                 loss.backward()
                 self.optimizer.step()
                 cnt += 1
-        return loss_sum / cnt    # average loss
+        return min([loss_sum / cnt, 1.0])    # average loss
 
 
 class NeoCortex:
@@ -85,7 +85,7 @@ class NeoCortex:
             self.model.set_optimizer(config['lr'])
             self.stream = deque()
             self.cnt = 0
-            self.average_loss = 0.0
+            self.average_loss = 1.0
             self.dump = config['dump']
 
         def step(self, in_data):
@@ -105,8 +105,6 @@ class NeoCortex:
                 dataset = StreamDataSet(self.stream)
                 self.average_loss = self.model.learn(dataset)
                 self.stream.clear()
-            if self.dump is not None:
-                self.dump.write("learn in_out: {0}\n".format(in_out))
             self.cnt += 1
 
     class Moderator:
@@ -146,11 +144,9 @@ class NeoCortex:
     def get_selection(self):
         return self.selector.get_selection()
 
-    def get_uncertainty(self):
-        return self.uncertainty
-
     def reset(self):
-        self.moderator.reset(self.action_predictor.average_loss)
+        self.uncertainty = self.action_predictor.average_loss
+        self.moderator.reset(1.0 - self.uncertainty)
         self.gone = False
 
 
@@ -275,6 +271,8 @@ class BG:
                     self.train['dump'].write("reward: {0}\n".format(reward))
             rl_go = self.prev_action
             self.rl_go_sum += rl_go * in_data.max()
+        if self.learning_mode == "rd":
+            self.rl_go_sum = np.random.randint(0,2)
         go = 1 if self.rl_go_sum >= 1 else 0
         return go
 
@@ -302,7 +300,6 @@ class CBT1Component(brica1.Component):
         self.init = True
         self.neoCortex = NeoCortex(self.in_dim, self.n_action, config['NeoCortex'])
         self.bg = BG(config, learning_mode, train)
-        self.uncertainty = 1.0
         self.go = 0
         self.gone = False
         self.dump = train['dump']
@@ -342,6 +339,8 @@ class CBT1Component(brica1.Component):
         self.gone = False
         if self.learning_mode == "rl":
             self.bg.env.reset()
+        if self.learning_mode == "rd":
+            self.neoCortex.moderator.use_prediction = 0
 
 
 class CognitiveArchitecture(brica1.Module):
