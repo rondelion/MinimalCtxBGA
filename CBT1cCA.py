@@ -311,11 +311,7 @@ class CBT1Component(brica1.Component):
             self.go = self.bg.step(in_data, self.neoCortex.get_selection(),
                                    self.get_in_port('reward').buffer[0],
                                    self.get_in_port('done').buffer[0])
-            selection = self.neoCortex.step(self.go, in_data)
-            if selection.max() == 0.0:
-                self.results['action'] = np.array([0])
-            else:
-                self.results['action'] = np.array([np.argmax(selection) + 1])
+            self.results['action'] = self.neoCortex.step(self.go, in_data)
             self.token = self.inputs['token_in'][0]
         if self.go == 1:
             if self.dump is not None and "b" in self.bg.train['dump_flags'] and not self.gone:
@@ -323,7 +319,7 @@ class CBT1Component(brica1.Component):
             self.gone = True
         if self.inputs['done'] == 1:
             self.results['token_out'] = np.array([0])
-            self.results['action'] = np.array([0])
+            self.results['action'] = np.zeros(self.n_action) # np.array([0])
         else:
             self.results['token_out'] = self.inputs['token_in']
 
