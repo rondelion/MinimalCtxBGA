@@ -319,7 +319,7 @@ class CBT1Component(brica1.Component):
             self.gone = True
         if self.inputs['done'] == 1:
             self.results['token_out'] = np.array([0])
-            self.results['action'] = np.zeros(self.n_action) # np.array([0])
+            self.results['action'] = np.zeros(self.n_action, dtype=np.int) # np.array([0])
         else:
             self.results['token_out'] = self.inputs['token_in']
 
