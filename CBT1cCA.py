@@ -4,6 +4,7 @@ import sys
 import argparse
 from collections import deque
 import json
+import ast
 
 # from gym import wrappers
 
@@ -72,7 +73,6 @@ class NeoCortex:
         self.moderator = NeoCortex.Moderator(n_action)
         self.selector = NeoCortex.Selector(n_action)
         self.uncertainty = 1.0
-        self.gone = False
 
     class ActionPredictor:
         def __init__(self, in_dim, out_dim, config):
@@ -136,10 +136,10 @@ class NeoCortex:
         action_predictor_output = self.action_predictor.step(in_data)
         moderator_output = self.moderator.step(action_predictor_output)
         output = self.selector.step(moderator_output, go)
-        if not self.gone and go == 1:
-            self.action_predictor.learn(in_data, output)
-            self.gone = True
         return output
+
+    def learn(self, in_data, output):
+        self.action_predictor.learn(in_data, output)
 
     def get_selection(self):
         return self.selector.get_selection()
@@ -147,7 +147,6 @@ class NeoCortex:
     def reset(self):
         self.uncertainty = self.action_predictor.average_loss
         self.moderator.reset(1.0 - self.uncertainty)
-        self.gone = False
 
 
 class BG:
@@ -189,23 +188,31 @@ class BG:
             self.done = done
 
     class FLActor:
-        def __init__(self, train):
+        def __init__(self, train, config):
             self.state = None
             self.success_count = {}
             self.state_go_count = {}
-            self.go = False
+            self.gone = False
             self.dump = train['dump']
             self.dump_flags = train['dump_flags']
+            if config['use_dump']:
+                try:
+                    with open(config['learning_dump']) as dump_file:
+                        self.success_count, self.state_go_count = ast.literal_eval(dump_file.read())
+                except:
+                    print('learning_dump file error', file=sys.stderr)
+                    sys.exit(1)
 
         def act(self, state):
-            self.state = state
             st = str(state)
             success_count = self.success_count[st] if st in self.success_count else 0
             state_go_count = self.state_go_count[st] if st in self.state_go_count else 0
             go_probability = (success_count + 1) / (state_go_count + 2)  # average beta distribution
-            action = np.random.binomial(1, go_probability)
+            action = 0 if self.gone else np.random.binomial(1, go_probability)
             if action > 0:
-                self.go = True
+                if not self.gone:
+                    self.gone = True
+                    self.state = state  # first go state
             if self.dump is not None and "b" in self.dump_flags:
                 self.dump.write("state: {0}, go {1}, suc.cnt: {2}, state go cnt: {3}\n"
                                 .format(state, action, success_count, state_go_count))
@@ -213,20 +220,26 @@ class BG:
 
         def learn(self, reward):
             st = str(self.state)
-            if self.go:
+            self.state = None
+            if self.gone:
                 if st not in self.state_go_count:
                     self.state_go_count[st] = 1
                 else:
                     self.state_go_count[st] += 1
-                self.go = False
-            if reward > 0:
-                if st not in self.success_count:
-                    self.success_count[st] = 1
-                else:
-                    self.success_count[st] += 1
+                if reward > 0:
+                    if st not in self.success_count:
+                        self.success_count[st] = 1
+                    else:
+                        self.success_count[st] += 1
+                self.gone = False
+
+        def reset(self):
+            self.gone = False
+            self.state = None
 
     def __init__(self, config, learning_mode, train):
         self.init = True
+        self.init_action = config['init_action']
         self.reward_sum = 0.0
         self.learning_mode = learning_mode
         self.rl_go_sum = 0
@@ -238,10 +251,15 @@ class BG:
                                           action_dim=config['n_action'], obs_dim=config['in_dim'])
             self.agent = Agent.create(agent=train['rl_agent'], environment=self.env, batch_size=train['rl_batch_size'])
         elif learning_mode == "fl":
-            self.fl_actor = BG.FLActor(train)
+            self.fl_actor = BG.FLActor(train, config)
+        self.successes = 0
+        self.success_rate = config['init_success_rate']
+        self.sr_cycle = config['sr_cycle']
+        self.sr_counter = 0
 
     def step(self, in_data, selection, reward, done):
         state = np.append(in_data, selection)
+        action = 0
         if self.learning_mode == "rl":
             self.env.set_state(state)
             self.env.set_reward(reward)
@@ -250,7 +268,8 @@ class BG:
                 self.rl_go_sum = 0
                 self.agent.timestep_completed[:] = True
                 state = self.env.reset()
-                self.prev_action = self.agent.act(states=state)
+                action = self.agent.act(states=state)
+                self.prev_action = action
                 self.init = False
             elif done == 1:
                 state, terminal, reward = self.env.execute(actions=self.prev_action)
@@ -261,9 +280,14 @@ class BG:
             self.dump(self.train['dump'], reward, state, self.prev_action, done, self.train['dump_flags'])
         if self.learning_mode == "fl":
             if self.init:
-                self.prev_action = self.fl_actor.act(state)
+                if self.init_action:
+                    self.prev_action = self.fl_actor.act(state)
                 self.init = False
-            if done == 1:
+            if done != 1:
+                if not self.init_action:
+                    action = self.fl_actor.act(state)
+                    self.prev_action = action
+            else:
                 self.fl_actor.learn(reward)
                 self.rl_go_sum = 0
                 self.init = True
@@ -272,9 +296,28 @@ class BG:
             rl_go = self.prev_action
             self.rl_go_sum += rl_go * in_data.max()
         if self.learning_mode == "rd":
-            self.rl_go_sum = np.random.randint(0,2)
-        go = 1 if self.rl_go_sum >= 1 else 0
+            action = np.random.randint(0,2)
+            self.rl_go_sum = action
+        if np.max(in_data) == 0:
+            return 0
+        # success rate
+        if done == 1:
+            self.successes += reward
+            self.sr_counter += 1
+            if self.sr_counter % self.sr_cycle == 0 and self.sr_counter != 0:
+                self.success_rate = self.successes / self.sr_cycle
+                self.successes = 0
+        if self.init_action:
+            go = 1 if self.rl_go_sum >= 1 else 0
+        else:
+            go = 1 if action > 0 else 0
         return go
+
+    def reset(self):
+        if self.learning_mode == "rl":
+            self.env.reset()
+        if self.learning_mode == "fl":
+            self.fl_actor.reset()
 
     @staticmethod
     def dump(dump, reward, state, action, done, dump_flags):
@@ -294,6 +337,7 @@ class CBT1Component(brica1.Component):
         self.make_out_port('action', self.n_action)
         self.make_in_port('token_in', 1)
         self.make_out_port('token_out', 1)
+        self.make_out_port('done', 1)
         self.token = 0
         self.prev_actions = 0
         self.learning_mode = learning_mode
@@ -302,22 +346,33 @@ class CBT1Component(brica1.Component):
         self.bg = BG(config, learning_mode, train)
         self.go = 0
         self.gone = False
+        self.use_success_rate = config['use_success_rate']
         self.dump = train['dump']
+        self.dump_learn = config['dump_learn']
+        self.learning_dump = config['learning_dump'] if 'learning_dump' in config else None
 
     def fire(self):
-        if self.token + 1 == self.inputs['token_in'][0]:
+        if self.init:  # TODO initialization error somewhere
+            self.results['reward'] = np.array([0.0])
+            done = 0
+            self.init = False
+        else:
+            self.results['reward'] = self.inputs['reward']
+            done = self.get_in_port('done').buffer[0]
+        if self.token + 1 == self.inputs['token_in'][0] or done == 1:
             in_data = self.get_in_port('observation').buffer
+            reward = self.get_in_port('reward').buffer[0]
             self.neoCortex.step(self.go, in_data)   # feed the selector
-            self.go = self.bg.step(in_data, self.neoCortex.get_selection(),
-                                   self.get_in_port('reward').buffer[0],
-                                   self.get_in_port('done').buffer[0])
+            self.go = self.bg.step(in_data, self.neoCortex.get_selection(), reward, done)
             self.results['action'] = self.neoCortex.step(self.go, in_data)
             self.token = self.inputs['token_in'][0]
-        if self.go == 1:
-            if self.dump is not None and "b" in self.bg.train['dump_flags'] and not self.gone:
-                self.dump.write("Gone\n")
+        if self.go == 1 and not self.gone:
+            self.neoCortex.learn(in_data, self.results['action'])
             self.gone = True
-        if self.inputs['done'] == 1:
+            if self.dump is not None and "b" in self.bg.train['dump_flags']:
+                self.dump.write("Gone\n")
+        self.results['done'] = np.array([done])
+        if done == 1:
             self.results['token_out'] = np.array([0])
             self.results['action'] = np.zeros(self.n_action, dtype=np.int) # np.array([0])
         else:
@@ -327,17 +382,29 @@ class CBT1Component(brica1.Component):
         self.token = 0
         self.init = True
         self.inputs['token_in'] = np.array([0])
+        self.inputs['reward'] = np.array([0.0])
         self.results['token_out'] = np.array([0])
         self.get_in_port('token_in').buffer = self.inputs['token_in']
+        self.get_in_port('reward').buffer = self.inputs['reward']
         self.get_out_port('token_out').buffer = self.results['token_out']
         self.neoCortex.reset()
+        if self.use_success_rate:
+            self.neoCortex.moderator.reset(self.bg.success_rate)
         self.go = 0
         self.gone = False
-        if self.learning_mode == "rl":
-            self.bg.env.reset()
         if self.learning_mode == "rd":
             self.neoCortex.moderator.use_prediction = 0
 
+    def close(self):
+        if self.learning_mode == "fl" and self.dump_learn and self.learning_dump is not None:
+            try:
+                f = open(self.learning_dump, 'w')
+            except OSError as e:
+                print(e)
+            else:
+                f.write("{0},".format(self.bg.fl_actor.success_count))
+                f.write("{0}".format(self.bg.fl_actor.state_go_count))
+                f.close()
 
 class CognitiveArchitecture(brica1.Module):
     def __init__(self, rl, train, config):
@@ -454,9 +521,9 @@ def main():
                         if go_count != 0:
                             reward_per_go = reward_go_sum / go_count
                         else:
-                            reward_per_go = "-"
+                            reward_per_go = 0.0
                         average_loss = model.cbt1.neoCortex.action_predictor.average_loss
-                        dump.write("{0}: avr. reward: {1}\treward/go: {2}\tloss: {3}\n".
+                        dump.write("{0}: avr. reward: {1:.2f}\treward/go: {2:.2f}\tloss: {3:.2f}\n".
                                    format(dump_counter // dump_cycle,
                                           reward_sum / dump_cycle,
                                           reward_per_go,
