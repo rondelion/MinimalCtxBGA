@@ -248,9 +248,14 @@ class BG:
         self.prev_action = 0
         if learning_mode == "rl":
             self.env = Environment.create(environment=BG.BGEnv,
-                                          max_episode_timesteps=train["episode_count"]*train["max_steps"],
+                                          max_episode_timesteps=train["max_steps"],  # train["episode_count"]*train["max_steps"],
                                           action_dim=config['n_action'], obs_dim=config['in_dim'])
-            self.agent = Agent.create(agent=train['rl_agent'], environment=self.env, batch_size=train['rl_batch_size'])
+            if train['rl_agent']=="dqn":
+                self.agent = Agent.create(agent="dqn", environment=self.env,
+                                          batch_size=train['rl_batch_size'], memory=train["max_steps"]) # TODO + horizon
+            else:
+                self.agent = Agent.create(agent=train['rl_agent'], environment=self.env,
+                                          batch_size=train['rl_batch_size'])
         elif learning_mode == "fl":
             self.fl_actor = BG.FLActor(train, config)
         self.successes = 0
