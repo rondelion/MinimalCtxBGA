@@ -22,7 +22,7 @@ import torch.nn as nn
 from tensorforce.environments import Environment
 from tensorforce.agents import Agent
 
-import gym
+import gymnasium
 
 
 class StreamDataSet(torch.utils.data.IterableDataset):
@@ -152,10 +152,13 @@ class NeoCortex:
 
 class BG:
     class BGEnv(Environment):
-        def __init__(self, obs_dim, action_dim):
+        def __init__(self, obs_dim, action_dim, state_type, num_values):
             super(Environment, self).__init__()
             state_dim = obs_dim + action_dim
-            self.state_space = dict(type='int', shape=(state_dim,), num_values=2)
+            if num_values is not None:
+                self.state_space = dict(type=state_type, shape=(state_dim,), num_values=num_values)
+            else:
+                self.state_space = dict(type=state_type, shape=(state_dim,))
             self.action_space = dict(type='int', num_values=2)
             self.state = np.random.random(size=(state_dim,))
             self.reset()
@@ -247,15 +250,19 @@ class BG:
         self.train = train
         self.prev_action = 0
         if learning_mode == "rl":
+            state_type = config['BG']['state_type'] if 'state_type' in config['BG'] else 'int'
+            num_values = config['BG']['num_values'] if ('num_values' in config['BG'] and state_type == 'int') \
+                else (2 if state_type == 'int' else None)
             self.env = Environment.create(environment=BG.BGEnv,
                                           max_episode_timesteps=train["max_steps"],  # train["episode_count"]*train["max_steps"],
-                                          action_dim=config['n_action'], obs_dim=config['in_dim'])
-            if train['rl_agent']=="dqn":
+                                          action_dim=config['n_action'], obs_dim=config['in_dim'],
+                                          state_type=state_type, num_values=num_values)
+            if config['BG']['rl_agent']=="dqn":
                 self.agent = Agent.create(agent="dqn", environment=self.env,
-                                          batch_size=train['rl_batch_size'], memory=train["max_steps"]) # TODO + horizon
+                                          batch_size=config['BG']['rl_batch_size'], memory=train["max_steps"]) # TODO + horizon
             else:
-                self.agent = Agent.create(agent=train['rl_agent'], environment=self.env,
-                                          batch_size=train['rl_batch_size'])
+                self.agent = Agent.create(agent=config['BG']['rl_agent'], environment=self.env,
+                                          batch_size=config['BG']['rl_batch_size'])
         elif learning_mode == "fl":
             self.fl_actor = BG.FLActor(train, config)
         self.successes = 0
@@ -461,7 +468,7 @@ def main():
     else:
         config['NeoCortex']['ActionPredictor']['dump'] = None
 
-    env = gym.make(config['env']['name'], config=config['env'])
+    env = gymnasium.make(config['env']['name'], config=config['env'])
 
     md = args.mode
     model = None
