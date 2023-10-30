@@ -291,7 +291,7 @@ class BG:
             rl_go = self.prev_action
             self.rl_go_sum += rl_go * in_data.max()
             self.dump(self.train['dump'], reward, state, self.prev_action, done, self.train['dump_flags'])
-        if self.learning_mode == "fl":
+        elif self.learning_mode == "fl":
             if self.init:
                 if self.init_action:
                     self.prev_action = self.fl_actor.act(state)
@@ -308,9 +308,12 @@ class BG:
                     self.train['dump'].write("reward: {0}\n".format(reward))
             rl_go = self.prev_action
             self.rl_go_sum += rl_go * in_data.max()
-        if self.learning_mode == "rd":
+        elif self.learning_mode == "rd":
             action = np.random.randint(0,2)
             self.rl_go_sum = action
+        elif self.learning_mode == "zr":
+            action = 0
+            self.rl_go_sum = 0
         if np.max(in_data) == 0:
             return 0
         # success rate
@@ -427,8 +430,8 @@ class CognitiveArchitecture(brica1.Module):
 
 def main():
     parser = argparse.ArgumentParser(description='BriCA Minimal Cognitive Architecture with Gym')
-    parser.add_argument('mode', help='1:random act, 2: reinforcement learning, 3: frequency learning',
-                        choices=['1', '2', '3'])
+    parser.add_argument('mode', help='0: zero output, 1:random act, 2: reinforcement learning, 3: frequency learning',
+                        choices=['0', '1', '2', '3'])
     parser.add_argument('--dump', help='dump file path')
     parser.add_argument('--episode_count', type=int, default=1, metavar='N',
                         help='Number of training episodes (default: 1)')
@@ -472,7 +475,9 @@ def main():
 
     md = args.mode
     model = None
-    if md == "1":   # random act
+    if md == "0":
+        model = CognitiveArchitecture("zr", train, config)
+    elif md == "1":   # random act
         model = CognitiveArchitecture("rd", train, config)
     elif md == "2":  # act by reinforcement learning
         train['rl_agent'] = config['BG']['rl_agent']
