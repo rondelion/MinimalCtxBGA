@@ -17,6 +17,7 @@
   "sr_cycle": 100,
   "init_success_rate": 0.5,
   "learning_mode": "fl",
+  "neocortex_learn": true,
   "dump_learn": false,
   "learning_dump": "learning.dmp",
   "use_dump": false,

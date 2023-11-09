@@ -357,6 +357,7 @@ class CBT1Component(brica1.brica_gym.Component):
         self.token = 0
         self.prev_actions = 0
         self.learning_mode = learning_mode
+        self.neocortex_learn = config['neocortex_learn']
         self.init = True
         self.neoCortex = NeoCortex(self.in_dim, self.n_action, config['NeoCortex'])
         self.bg = BG(config, learning_mode, train)
@@ -376,7 +377,8 @@ class CBT1Component(brica1.brica_gym.Component):
         self.go = self.bg.step(in_data, self.neoCortex.get_selection(), reward, done)
         self.results['action'] = self.neoCortex.step(self.go, in_data)
         if self.go == 1 and not self.gone:
-            self.neoCortex.learn(in_data, self.results['action'])
+            if self.neocortex_learn:
+                self.neoCortex.learn(in_data, self.results['action'])
             self.gone = True
             if self.dump is not None and "b" in self.bg.train['dump_flags']:
                 self.dump.write("Gone\n")
