@@ -367,16 +367,17 @@ class CBT1Component(brica1.brica_gym.Component):
         self.dump = train['dump']
         self.dump_learn = config['dump_learn']
         self.learning_dump = config['learning_dump'] if 'learning_dump' in config else None
+        self.one_go_per_episode = config['one_go_per_episode']
+        self.go_cost =  config['go_cost']
 
     def fire(self):
-        self.results['reward'] = self.inputs['reward']
         done = self.get_in_port('done').buffer[0]
         in_data = self.get_in_port('observation').buffer
-        reward = self.get_in_port('reward').buffer[0]
+        reward = self.get_in_port('reward').buffer[0] - self.go * self.go_cost
         self.neoCortex.step(self.go, in_data)   # feed the selector
         self.go = self.bg.step(in_data, self.neoCortex.get_selection(), reward, done)
         self.results['action'] = self.neoCortex.step(self.go, in_data)
-        if self.go == 1 and not self.gone:
+        if self.go == 1 and not (self.one_go_per_episode and self.gone):
             if self.neocortex_learn:
                 self.neoCortex.learn(in_data, self.results['action'])
             self.gone = True
@@ -513,7 +514,7 @@ def main():
                         scheduler.step()
                         break
                 if dump is not None and "m" in args.dump_flags:
-                    if model.cbt1.gone:
+                    if model.cbt1.one_go_per_episode and model.cbt1.gone:
                         go_count += 1
                         reward_go_sum += agent.get_in_port("reward").buffer[0]
                     reward_sum += agent.get_in_port("reward").buffer[0]

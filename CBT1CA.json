@@ -21,6 +21,8 @@
   "dump_learn": false,
   "learning_dump": "learning.dmp",
   "use_dump": false,
+  "one_go_per_episode": true,
+  "go_cost": 0.5,
   "BG" : {
     "threshold":0.01,
     "disinhibition_length": 2,
