@@ -7,6 +7,8 @@
 
 For details, please read [this article](https://rondelionai.blogspot.com/2021/12/a-minimal-cortex-basal-ganglia.html).
 
+**What's New:** Generic RL only version: **CBT1cCA_2.py**
+
 ## How to Install
 * Clone the repository
 * BriCA1
@@ -31,7 +33,9 @@ register(
 
 ## Usage
 ### Command arguments
-- First arg: 1:random act, 2: reinforcement learning, 3: frequency learning
+- First arg: 1:random act, 2: reinforcement learning, 3: frequency learning  
+(CBT1cCA_2 does not have the option 3.)  
+
 - Options
       --dump: dump file path')
       --episode_count: Number of training episodes (default: 1)
@@ -47,7 +51,9 @@ $ python CBT1cCA.py 3 --episode_count 4000 --dump "BG_dump.txt" --dump_flags "mb
 
 ## Other files
 
-* CBT1CA.json:	config. file
+* CBT1CA.json:	config. file for CBT1CA
+* CBT1CA2.json:	config. file for CBT1CA_2  
+Use always "dqn" for the RL agent.
 * CBT1EnvRLTest.py:	an RL agent for the environment
 
 
