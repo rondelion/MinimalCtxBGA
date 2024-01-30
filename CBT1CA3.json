@@ -1,0 +1,48 @@
+{
+  "sync_cycle": 10,
+  "sleep": 0.02,
+  "gym_monitor_out_dir": "./tmp/random-agent-results",
+  "dump_cycle": 100,
+  "env": {
+    "name": "CBT1Env-v0",
+    "observation_shape": [3],
+    "interaction_period": 3,
+    "delay": 1,
+    "penalty": -0.7
+  },
+  "in_dim": 3,
+  "n_action": 2,
+  "init_action": true,
+  "use_success_rate": false,
+  "sr_cycle": 100,
+  "init_success_rate": 0.5,
+  "learning_mode": "rl",
+  "neocortex_learn": true,
+  "one_go_per_episode": true,
+  "go_cost": 0.0,
+  "blind": false,
+  "BG" : {
+    "BATCH_SIZE": 128,
+    "GAMMA": 0.99,
+    "EPS_START": 0.9,
+    "EPS_END": 0.05,
+    "EPS_DECAY": 1000,
+    "TAU": 0.005,
+    "LR": 1e-4
+  },
+  "NeoCortex" : {
+      "Accumulator": {
+        "attenuation": 0.4,
+        "input_weight": 0.5,
+        "noise_weight": 0.5
+      },
+      "ActionPredictor": {
+        "intra_dim": 4,
+        "batch_size": 50,
+        "loss_accum_rate": 0.05,
+        "lr": 0.5,
+        "epochs": 100,
+        "model_file": "ActionPredictor.pt"
+      }
+   }
+}

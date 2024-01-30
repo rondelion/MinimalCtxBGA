@@ -5,9 +5,11 @@
 * Action predictor (Cortex) -- a perceptron
 * Go/NoGo determiner (BG) with reinforcement/frequency learning
 
-For details, please read [this article](https://rondelionai.blogspot.com/2021/12/a-minimal-cortex-basal-ganglia.html).
+For details, please read [this article](https://rondelionai.blogspot.com/2021/12/a-minimal-cortex-basal-ganglia.html) (based on **CBT1cCA_1.py**).
 
-**What's New:** Generic RL only version: **CBT1cCA_2.py**
+**What's New:**
+* PyTorch DQN version: **CBT1cCA_3.py**
+* Generic TensorForce RL version: **CBT1cCA_2.py**
 
 ## How to Install
 * Clone the repository
@@ -17,7 +19,7 @@ For details, please read [this article](https://rondelionai.blogspot.com/2021/12
     * Numpy
     * [OpenAI Gym](https://gym.openai.com/)
     * [PyTorch](https://pytorch.org)
-    * [TensorForce](https://github.com/tensorforce/tensorforce)
+    * [TensorForce](https://github.com/tensorforce/tensorforce) (not necessary for CBT1cCA_3.py)
 * Register the environment to Gym
     * Place `CBT1Env.py` file in `gym/gym/envs/myenv`  
     (wherever Gym to be used is installed)
@@ -34,7 +36,7 @@ register(
 ## Usage
 ### Command arguments
 - First arg: 1:random act, 2: reinforcement learning, 3: frequency learning  
-(CBT1cCA_2 does not have the option 3.)  
+(CBT1cCA_2/CBT1cCA_3 do not have the option 3.)  
 
 - Options
       --dump: dump file path')
@@ -45,15 +47,19 @@ register(
 
 ### Sample usage
 ```
-$ python CBT1cCA.py 3 --episode_count 4000 --dump "BG_dump.txt" --dump_flags "mbp"
+$ python CBT1cCA_1.py 3 --episode_count 4000 --dump "BG_dump.txt" --dump_flags "mbp"
 
 ```
 
 ## Other files
 
-* CBT1CA.json:	config. file for CBT1CA
+* CBT1Env.py:  Test env. (note: not MDP for delay > 1)
+* CBT1CA.json:	config. file for CBT1CA_1
 * CBT1CA2.json:	config. file for CBT1CA_2  
 Use always "dqn" for the RL agent.
+* CBT1CA3.json: config. file for CBT1CA_3
 * CBT1EnvRLTest.py:	an RL agent for the environment
+* CBT1CA.brical.json: BriCA Language file for CBT1cCA_1_BL
+* dqn.py: PyTorch DQN module (based on a PyTorch tutorial)
 
 
